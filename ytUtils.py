@@ -57,16 +57,20 @@ def get_transcript_as_document(url):
             proxy_password = os.getenv("proxy_password")
             
             if proxy_username and proxy_password:
-                from youtube_transcript_api.proxies import WebshareProxyConfig
-                proxy_config = WebshareProxyConfig(
-                    proxy_username=proxy_username,
-                    proxy_password=proxy_password,
-                )
-                transcript = YouTubeTranscriptApi.get_transcript(
-                    video_id, 
-                    languages=['en', 'en-US', 'en-GB'],
-                    proxies=proxy_config
-                )
+                try:
+                    from youtube_transcript_api.proxies import WebshareProxyConfig
+                    proxy_config = WebshareProxyConfig(
+                        proxy_username=proxy_username,
+                        proxy_password=proxy_password,
+                    )
+                    transcript = YouTubeTranscriptApi.get_transcript(
+                        video_id, 
+                        languages=['en', 'en-US', 'en-GB'],
+                        proxies=proxy_config
+                    )
+                except ImportError:
+                    # If proxy module not available, try without proxy
+                    raise e
             else:
                 raise e
         
@@ -83,7 +87,7 @@ def get_transcript_as_document(url):
         
     except Exception as e:
         error_msg = str(e)
-        if "No transcript" in error_msg or "Transcript is disabled" in error_msg:
+        if "No transcript" in error_msg or "Transcript is disabled" in error_msg or "not available" in error_msg:
             raise RuntimeError(f"No transcript available for this YouTube video. The video may have disabled captions or may not have auto-generated captions available.")
         elif "Video unavailable" in error_msg:
             raise RuntimeError(f"YouTube video is unavailable or private.")

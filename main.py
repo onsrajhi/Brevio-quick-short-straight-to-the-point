@@ -7,6 +7,7 @@ from typing import List, Optional
 import os
 import logging
 from pathlib import Path
+import tempfile
 
 # Import your utility modules
 from ytUtils import get_transcript_as_document
@@ -66,7 +67,7 @@ class SummaryResponse(BaseModel):
 
 # Custom LLM wrapper for Groq
 class GroqLLM:
-    def __init__(self, client, model_name="gemma2-9b-it"):
+    def __init__(self, client, model_name="llama3-70b-8192"):
         self.client = client
         self.model_name = model_name
     
@@ -75,6 +76,7 @@ class GroqLLM:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
+                    {"role": "system", "content": "You are a helpful assistant that creates comprehensive, well-structured summaries suitable for audio narration."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=2048,
@@ -83,20 +85,26 @@ class GroqLLM:
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Groq API error: {e}")
-            raise HTTPException(status_code=500, detail=f"LLM processing failed: {str(e)}")
-    
-    def run(self, docs):
-        # For LangChain compatibility
-        if isinstance(docs, list):
-            text = "\n\n".join([doc.page_content for doc in docs])
-        else:
-            text = str(docs)
-        return self.__call__(text)
+            # Try with a different model if the first one fails
+            try:
+                response = self.client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that creates comprehensive, well-structured summaries suitable for audio narration."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=2048,
+                    temperature=0.3
+                )
+                return response.choices[0].message.content
+            except Exception as e2:
+                logger.error(f"Groq API error with fallback model: {e2}")
+                raise HTTPException(status_code=500, detail=f"LLM processing failed: {str(e2)}")
 
 # Initialize LLM
 def get_llm():
     if not groq_client:
-        raise HTTPException(status_code=500, detail="LLM service not available")
+        raise HTTPException(status_code=500, detail="LLM service not available - please check GROQ_API_KEY")
     return GroqLLM(groq_client)
 
 @app.get("/")
@@ -108,7 +116,8 @@ async def health_check():
     return {
         "status": "healthy",
         "groq_available": groq_client is not None,
-        "version": "2.0.0"
+        "version": "2.0.0",
+        "groq_api_key_set": bool(os.getenv("GROQ_API_KEY"))
     }
 
 @app.post("/summarize/url", response_model=SummaryResponse)
@@ -135,6 +144,10 @@ async def summarize_url(request: URLRequest):
         if not documents:
             raise HTTPException(status_code=400, detail="No content could be extracted")
         
+        # Log content length for debugging
+        total_content = " ".join([doc.page_content for doc in documents])
+        logger.info(f"Total content length: {len(total_content)} characters")
+        
         # Initialize LLM
         llm = get_llm()
         
@@ -145,12 +158,16 @@ async def summarize_url(request: URLRequest):
         if not summary or not summary.strip():
             raise HTTPException(status_code=500, detail="Failed to generate summary")
         
+        logger.info(f"Summary generated: {len(summary)} characters")
+        
         # Generate audio
         logger.info("Generating audio...")
         audio_bytes, audio_b64 = generate_audio(summary)
         
         # Save audio file
-        audio_filename = f"summary_{hash(request.url)}_{request.content_type}.mp3"
+        import time
+        timestamp = int(time.time())
+        audio_filename = f"summary_{hash(request.url)}_{request.content_type}_{timestamp}.mp3"
         audio_path = f"static/audio/{audio_filename}"
         
         with open(audio_path, "wb") as f:
@@ -170,6 +187,9 @@ async def summarize_url(request: URLRequest):
     except ValueError as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Runtime error: {e}")
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Processing error: {e}")
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
@@ -185,17 +205,16 @@ async def summarize_pdf(files: List[UploadFile] = File(...)):
         # Validate files
         validate_inputs("pdf", files=files)
         
-        # Validate file types
-        for file in files:
-            if not file.filename.endswith('.pdf'):
-                raise HTTPException(status_code=400, detail=f"File {file.filename} is not a PDF")
-        
         # Load PDF content
         logger.info("Loading PDF content...")
         documents = load_pdf_content(files)
         
         if not documents:
             raise HTTPException(status_code=400, detail="No readable content found in PDF files")
+        
+        # Log content for debugging
+        total_content = " ".join([doc.page_content for doc in documents])
+        logger.info(f"Total PDF content length: {len(total_content)} characters")
         
         # Initialize LLM
         llm = get_llm()
@@ -207,13 +226,17 @@ async def summarize_pdf(files: List[UploadFile] = File(...)):
         if not summary or not summary.strip():
             raise HTTPException(status_code=500, detail="Failed to generate summary")
         
+        logger.info(f"Summary generated: {len(summary)} characters")
+        
         # Generate audio
         logger.info("Generating audio...")
         audio_bytes, audio_b64 = generate_audio(summary)
         
         # Save audio file
-        filenames = "_".join([f.filename for f in files[:3]])  # Use first 3 filenames
-        audio_filename = f"summary_pdf_{hash(filenames)}.mp3"
+        import time
+        timestamp = int(time.time())
+        filenames = "_".join([f.filename.replace('.pdf', '') for f in files[:3]])  # Use first 3 filenames
+        audio_filename = f"summary_pdf_{hash(filenames)}_{timestamp}.mp3"
         audio_path = f"static/audio/{audio_filename}"
         
         with open(audio_path, "wb") as f:
@@ -227,12 +250,15 @@ async def summarize_pdf(files: List[UploadFile] = File(...)):
             summary=summary,
             audio_url=audio_url,
             content_type="pdf",
-            source=f"{len(files)} PDF file(s)"
+            source=f"{len(files)} PDF file(s): {', '.join([f.filename for f in files])}"
         )
         
     except ValueError as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Runtime error: {e}")
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"PDF processing error: {e}")
         raise HTTPException(status_code=500, detail=f"PDF processing failed: {str(e)}")
@@ -263,8 +289,10 @@ async def cleanup_old_files():
         
         for file_path in audio_dir.glob("*.mp3"):
             try:
-                file_path.unlink()
-                deleted_count += 1
+                # Only delete files older than 1 hour
+                if file_path.stat().st_mtime < (time.time() - 3600):
+                    file_path.unlink()
+                    deleted_count += 1
             except Exception as e:
                 logger.warning(f"Could not delete {file_path}: {e}")
         
@@ -272,8 +300,36 @@ async def cleanup_old_files():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
 
+# Add a test endpoint for debugging
+@app.get("/test/youtube")
+async def test_youtube():
+    """Test endpoint for YouTube functionality"""
+    try:
+        test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Astley - Never Gonna Give You Up
+        from ytUtils import extract_youtube_video_id
+        video_id = extract_youtube_video_id(test_url)
+        return {"url": test_url, "video_id": video_id, "status": "URL parsing works"}
+    except Exception as e:
+        return {"error": str(e), "status": "URL parsing failed"}
+
+@app.get("/test/web")
+async def test_web():
+    """Test endpoint for web functionality"""
+    try:
+        test_url = "https://httpbin.org/html"  # Simple test page
+        documents = load_web_content(test_url)
+        return {
+            "url": test_url, 
+            "documents": len(documents), 
+            "content_length": len(documents[0].page_content) if documents else 0,
+            "status": "Web loading works"
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "Web loading failed"}
+
 if __name__ == "__main__":
     import uvicorn
+    import time
     
     # Check if required environment variables are set
     required_env_vars = ["GROQ_API_KEY"]
@@ -282,6 +338,7 @@ if __name__ == "__main__":
     if missing_vars:
         logger.error(f"Missing required environment variables: {missing_vars}")
         print(f"Please set the following environment variables: {missing_vars}")
+        print("Example: export GROQ_API_KEY='your_groq_api_key_here'")
         exit(1)
     
     logger.info("Starting Brevio API server...")
