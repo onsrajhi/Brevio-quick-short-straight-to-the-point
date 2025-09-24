@@ -67,28 +67,26 @@ class SummaryResponse(BaseModel):
 
 # Custom LLM wrapper for Groq
 class GroqLLM:
-    def __init__(self, client, model_name="llama3-70b-8192"):
+    def __init__(self, client, model_name="llama-3.3-70b-versatile"):
         self.client = client
         self.model_name = model_name
+        # List of current available models to try as fallbacks
+        self.fallback_models = [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile", 
+            "llama-3.1-8b-instant",
+            "gemma2-9b-it",
+            "qwen2-72b-instruct"
+        ]
     
     def __call__(self, prompt):
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that creates comprehensive, well-structured summaries suitable for audio narration."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=2048,
-                temperature=0.3
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Groq API error: {e}")
-            # Try with a different model if the first one fails
+        # Try primary model first, then fallbacks
+        models_to_try = [self.model_name] + [m for m in self.fallback_models if m != self.model_name]
+        
+        for model in models_to_try:
             try:
                 response = self.client.chat.completions.create(
-                    model="mixtral-8x7b-32768",
+                    model=model,
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant that creates comprehensive, well-structured summaries suitable for audio narration."},
                         {"role": "user", "content": prompt}
@@ -96,10 +94,14 @@ class GroqLLM:
                     max_tokens=2048,
                     temperature=0.3
                 )
+                logger.info(f"Successfully used model: {model}")
                 return response.choices[0].message.content
-            except Exception as e2:
-                logger.error(f"Groq API error with fallback model: {e2}")
-                raise HTTPException(status_code=500, detail=f"LLM processing failed: {str(e2)}")
+            except Exception as e:
+                logger.warning(f"Model {model} failed: {e}")
+                continue
+        
+        # If all models fail, raise the last error
+        raise HTTPException(status_code=500, detail=f"All LLM models failed. Please check your Groq API key and model availability.")
 
 # Initialize LLM
 def get_llm():
@@ -326,6 +328,40 @@ async def test_web():
         }
     except Exception as e:
         return {"error": str(e), "status": "Web loading failed"}
+
+@app.get("/test/groq-models")
+async def test_groq_models():
+    """Test which Groq models are currently available"""
+    if not groq_client:
+        return {"error": "Groq client not initialized"}
+    
+    try:
+        # Try to get list of available models
+        models_response = groq_client.models.list()
+        available_models = [model.id for model in models_response.data]
+        
+        # Test a simple prompt with each model
+        test_results = {}
+        test_prompt = "Hello, please respond with 'Model working' if you can process this."
+        
+        for model_id in available_models[:5]:  # Test first 5 models
+            try:
+                response = groq_client.chat.completions.create(
+                    model=model_id,
+                    messages=[{"role": "user", "content": test_prompt}],
+                    max_tokens=50
+                )
+                test_results[model_id] = "Working"
+            except Exception as e:
+                test_results[model_id] = f"Error: {str(e)[:100]}"
+        
+        return {
+            "available_models": available_models,
+            "test_results": test_results,
+            "status": "Models tested"
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "Could not retrieve models"}
 
 if __name__ == "__main__":
     import uvicorn

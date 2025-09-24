@@ -1,15 +1,29 @@
-langchain
-python-dotenv
-langchain_community
-langchain_core
-streamlit
-langchain_groq
-langchain_text_splitters
-pypdf
-validators==0.28.1
-youtube_transcript_api
-pytube
-unstructured
-transformers
-gtts
-Pillow
+# FastAPI and web framework dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# AI and LLM dependencies
+groq==0.4.1
+langchain==0.1.0
+langchain-text-splitters==0.0.1
+
+# Document processing
+PyPDF2==3.0.1
+beautifulsoup4==4.12.2
+requests==2.31.0
+
+# Audio generation
+gTTS==2.4.0
+
+# YouTube transcript
+youtube-transcript-api==0.6.1
+
+# Environment and utilities
+python-dotenv==1.0.0
+pydantic==2.5.0
+
+# Additional utilities
+lxml==4.9.3
+html5lib==1.1
+chardet==5.2.0

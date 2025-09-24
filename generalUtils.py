@@ -1,6 +1,4 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.chains.summarize import load_summarize_chain
-from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from gtts import gTTS
 import base64
@@ -13,6 +11,11 @@ import PyPDF2
 import io
 import os
 from typing import List
+import time
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Defining max tokens
 MAX_TOKENS = 6000
@@ -28,7 +31,7 @@ def validate_inputs(content_type, url=None, files=None):
         if not files or len(files) == 0:
             raise ValueError("At least one PDF file is required")
         for file in files:
-            if not file.filename.endswith('.pdf'):
+            if not file.filename.lower().endswith('.pdf'):
                 raise ValueError(f"File {file.filename} is not a PDF")
 
 def is_valid_url(url):
@@ -57,7 +60,7 @@ def load_web_content(url):
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Remove unwanted elements
-        for element in soup(['script', 'style', 'nav', 'header', 'footer', 'aside', 'advertisement']):
+        for element in soup(['script', 'style', 'nav', 'header', 'footer', 'aside', 'advertisement', 'noscript']):
             element.decompose()
         
         # Try to find main content areas
@@ -70,7 +73,10 @@ def load_web_content(url):
             '.article-content',
             '.entry-content',
             '#content',
-            '.main-content'
+            '.main-content',
+            '.story-body',
+            '.article-body',
+            'div.content'
         ]
         
         content_text = ""
@@ -78,7 +84,8 @@ def load_web_content(url):
             elements = soup.select(selector)
             if elements:
                 content_text = ' '.join([elem.get_text(strip=True) for elem in elements])
-                break
+                if content_text:  # Only break if we got meaningful content
+                    break
         
         # If no specific content area found, get all text
         if not content_text:
@@ -92,12 +99,17 @@ def load_web_content(url):
         if not content_text or len(content_text) < 100:
             raise ValueError("Unable to extract meaningful content from the webpage")
         
+        logger.info(f"Successfully extracted {len(content_text)} characters from web content")
         return [Document(page_content=content_text, metadata={"source": url})]
         
     except requests.RequestException as e:
-        raise RuntimeError(f"Failed to fetch web content: {str(e)}")
+        error_msg = f"Failed to fetch web content: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
     except Exception as e:
-        raise RuntimeError(f"Error processing web content: {str(e)}")
+        error_msg = f"Error processing web content: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 def load_pdf_content(files: List[UploadFile]):
     """Load content from PDF files"""
@@ -105,6 +117,8 @@ def load_pdf_content(files: List[UploadFile]):
     
     for file in files:
         try:
+            logger.info(f"Processing PDF file: {file.filename}")
+            
             # Read file content
             file_content = file.file.read()
             
@@ -115,11 +129,17 @@ def load_pdf_content(files: List[UploadFile]):
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
             
             text_content = ""
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                page_text = page.extract_text()
-                if page_text:
-                    text_content += page_text + "\n"
+            page_count = len(pdf_reader.pages)
+            
+            for page_num in range(page_count):
+                try:
+                    page = pdf_reader.pages[page_num]
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_content += page_text + "\n"
+                except Exception as page_error:
+                    logger.warning(f"Error extracting text from page {page_num + 1} of {file.filename}: {page_error}")
+                    continue
             
             if text_content.strip():
                 # Clean up text
@@ -129,24 +149,37 @@ def load_pdf_content(files: List[UploadFile]):
                 
                 documents.append(Document(
                     page_content=text_content,
-                    metadata={"source": file.filename, "type": "pdf"}
+                    metadata={
+                        "source": file.filename, 
+                        "type": "pdf",
+                        "pages": page_count,
+                        "characters": len(text_content)
+                    }
                 ))
+                logger.info(f"Successfully processed {file.filename}: {len(text_content)} characters")
             else:
-                print(f"Warning: No text content extracted from {file.filename}")
+                logger.warning(f"No text content extracted from {file.filename}")
                 
         except Exception as e:
-            print(f"Error processing {file.filename}: {str(e)}")
+            logger.error(f"Error processing {file.filename}: {str(e)}")
             continue
     
     if not documents:
         raise ValueError("No readable content found in any of the PDF files")
     
+    logger.info(f"Total documents processed: {len(documents)}")
     return documents
 
 def chunk_documents(docs):
     """Split documents into chunks"""
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000, 
+        chunk_overlap=200,
+        length_function=len,
+        separators=["\n\n", "\n", " ", ""]
+    )
     split_docs = text_splitter.split_documents(docs)
+    logger.info(f"Split {len(docs)} documents into {len(split_docs)} chunks")
     return split_docs
 
 def summarize_chain(docs, llm):
@@ -154,10 +187,12 @@ def summarize_chain(docs, llm):
     try:
         total_text = " ".join(doc.page_content for doc in docs)
         total_tokens = len(total_text) // 4  # Rough estimate: 1 token ≈ 4 characters for English
+        
+        logger.info(f"Processing content: {len(total_text)} characters (~{total_tokens} tokens)")
 
         # Use 'stuff' for summarization if under token limit else switch to 'map-reduce'
         if total_tokens < MAX_TOKENS:
-            # Prompt setup
+            # Single-shot summarization for smaller content
             template = '''Please provide a comprehensive and well-structured summary of the following content.
 
 Instructions:
@@ -176,15 +211,18 @@ Summary:'''
             
             # Use the LLM directly
             summary = llm(template.format(text=combined_text))
+            logger.info("Generated summary using single-shot approach")
             return summary
             
         else:
             # For longer content, use chunking approach
+            logger.info("Content is large, using chunking approach")
             chunked_docs = chunk_documents(docs)
             
             # Summarize each chunk first
             chunk_summaries = []
-            for chunk in chunked_docs:
+            for i, chunk in enumerate(chunked_docs):
+                logger.info(f"Processing chunk {i+1}/{len(chunked_docs)}")
                 chunk_template = '''Provide a concise summary of the key points in this text section:
 
 {text}
@@ -210,14 +248,19 @@ Please provide:
 Make it suitable for audio narration:'''
             
             final_summary = llm(final_template.format(text=combined_summaries))
+            logger.info("Generated final summary using map-reduce approach")
             return final_summary
             
     except Exception as e:
-        raise RuntimeError(f"Failed to generate summary: {str(e)}")
+        error_msg = f"Failed to generate summary: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 def generate_audio(summary_text, lang="en"):
     """Generate audio from text using gTTS"""
     try:
+        logger.info(f"Generating audio for {len(summary_text)} characters")
+        
         # Formatting text for better audio
         text = re.sub(r'[#*_>`\-]', '', summary_text)  # Remove markdown formatting
         text = re.sub(r'(?<=[^\.\!\?])\n', '. ', text)  # Add periods if line ends without one
@@ -229,30 +272,34 @@ def generate_audio(summary_text, lang="en"):
             raise ValueError("No text to convert to audio")
         
         # Create a unique filename
-        import time
         timestamp = str(int(time.time()))
         audio_filename = f"summary_audio_{timestamp}.mp3"
         
-        tts = gTTS(text, lang=lang, slow=False)
+        # Create gTTS object with better settings
+        tts = gTTS(text=text, lang=lang, slow=False, tld='com')
         tts.save(audio_filename)
         
+        # Read the audio file
         with open(audio_filename, "rb") as f:
             audio_bytes = f.read()
         
         # Clean up temporary file
         try:
             os.remove(audio_filename)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning(f"Could not remove temporary audio file: {e}")
         
         b64 = base64.b64encode(audio_bytes).decode()
+        logger.info(f"Successfully generated audio: {len(audio_bytes)} bytes")
         return audio_bytes, b64
         
     except Exception as e:
-        raise RuntimeError(f"Failed to generate audio: {str(e)}")
+        error_msg = f"Failed to generate audio: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
 # Test functions for debugging
-def test_web_content(url="https://www.example.com"):
+def test_web_content(url="https://httpbin.org/html"):
     """Test web content loading"""
     try:
         docs = load_web_content(url)
@@ -263,8 +310,21 @@ def test_web_content(url="https://www.example.com"):
         print(f"Error loading web content: {e}")
         return None
 
+def test_audio_generation(text="This is a test summary for audio generation."):
+    """Test audio generation"""
+    try:
+        audio_bytes, b64 = generate_audio(text)
+        print(f"Successfully generated audio: {len(audio_bytes)} bytes")
+        return True
+    except Exception as e:
+        print(f"Error generating audio: {e}")
+        return False
+
 if __name__ == "__main__":
     # Test the functions
-    test_url = "https://www.example.com"
-    print(f"Testing web content loading with: {test_url}")
+    print("Testing web content loading...")
+    test_url = "https://httpbin.org/html"
     test_web_content(test_url)
+    
+    print("\nTesting audio generation...")
+    test_audio_generation()
