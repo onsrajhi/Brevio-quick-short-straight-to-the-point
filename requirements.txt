@@ -1,0 +1,15 @@
+langchain
+python-dotenv
+langchain_community
+langchain_core
+streamlit
+langchain_groq
+langchain_text_splitters
+pypdf
+validators==0.28.1
+youtube_transcript_api
+pytube
+unstructured
+transformers
+gtts
+Pillow

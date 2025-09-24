@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brevio - AI-Powered Content Summarization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background particles */
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.1;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.1;
+            }
+            90% {
+                opacity: 0.1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+            animation: logoFloat 3s ease-in-out infinite;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .logo::before {
+            content: "B";
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .title {
+            font-size: 4rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 1rem;
+            animation: titleSlide 1s ease-out;
+            background: linear-gradient(45deg, #ffffff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        @keyframes titleSlide {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 3rem;
+            max-width: 600px;
+            line-height: 1.6;
+            animation: subtitleFade 1.5s ease-out;
+        }
+
+        @keyframes subtitleFade {
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tech-stack {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 3rem;
+            animation: subtitleFade 2s ease-out;
+        }
+
+        .content-types {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .content-type {
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            color: white;
+            font-size: 1rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            animation: typeFloat 2s ease-out;
+            animation-fill-mode: both;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .content-type:nth-child(1) { animation-delay: 0.5s; }
+        .content-type:nth-child(2) { animation-delay: 0.7s; }
+        .content-type:nth-child(3) { animation-delay: 0.9s; }
+
+        @keyframes typeFloat {
+            0% {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .content-type::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .content-type:hover::before {
+            left: 100%;
+        }
+
+        .content-type:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .content-type.active {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .start-button {
+            padding: 1.2rem 3rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: buttonPulse 3s ease-in-out infinite;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes buttonPulse {
+            0%, 100% {
+                box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            }
+            50% {
+                box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+            }
+        }
+
+        .start-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s;
+        }
+
+        .start-button:hover::before {
+            transform: translateX(100%);
+        }
+
+        .start-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.4);
+        }
+
+        .arrow-down {
+            margin-top: 3rem;
+            animation: bounce 2s infinite;
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .arrow-down svg {
+            width: 30px;
+            height: 30px;
+            fill: white;
+        }
+
+        /* Input Section */
+        .input-section {
+            position: fixed;
+            top: 100vh;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            transition: top 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 100;
+        }
+
+        .input-section.active {
+            top: 0;
+        }
+
+        .input-container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .input-title {
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+
+        .input-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .input-group {
+            margin-bottom: 2rem;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 1.2rem 2rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .input-field::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
+        }
+
+        .file-upload {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .file-upload:hover {
+            border-color: rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .file-upload-text {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-upload-subtext {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        .process-button {
+            padding: 1rem 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .process-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .back-button {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            padding: 0.8rem 1.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(-5px);
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .content-types {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .content-type {
+                width: 200px;
+            }
+        }
+
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated background particles -->
+    <div class="particles"></div>
+    
+    <!-- Loading spinner -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Main container -->
+    <div class="container">
+        <div class="logo"></div>
+        
+        <h1 class="title">Brevio</h1>
+        
+        <p class="subtitle">
+            Generate intelligent summaries with audio from YouTube videos, web URLs, and PDF documents.
+        </p>
+        
+        <p class="tech-stack">
+            Powered by LangChain, Groq LLM, and gTTS for faster, accessible content digestion.
+        </p>
+        
+        <div class="content-types">
+            <div class="content-type" data-type="youtube">
+                🎥 YouTube Videos
+            </div>
+            <div class="content-type" data-type="web">
+                🌐 Web URLs
+            </div>
+            <div class="content-type" data-type="pdf">
+                📄 PDF Documents
+            </div>
+        </div>
+        
+        <button class="start-button" id="startButton">
+            Start Summarizing
+        </button>
+        
+        <div class="arrow-down" id="scrollArrow">
+            <svg viewBox="0 0 24 24">
+                <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Input section -->
+    <div class="input-section" id="inputSection">
+        <button class="back-button" id="backButton">← Back</button>
+        
+        <div class="input-container">
+            <h2 class="input-title" id="inputTitle">Enter YouTube URL</h2>
+            <p class="input-subtitle" id="inputSubtitle">Paste your YouTube video URL below</p>
+            
+            <!-- YouTube/Web URL input -->
+            <div class="input-group" id="urlInput">
+                <input type="url" class="input-field" id="urlField" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            
+            <!-- PDF upload -->
+            <div class="input-group" id="fileInput" style="display: none;">
+                <div class="file-upload" id="fileUpload">
+                    <div class="file-upload-text">📄 Drop your PDF here or click to browse</div>
+                    <div class="file-upload-subtext">Supports multiple PDF files</div>
+                    <input type="file" multiple accept=".pdf" style="display: none;" id="pdfFiles">
+                </div>
+                <div id="fileList"></div>
+            </div>
+            
+            <button class="process-button" id="processButton">
+                Process & Summarize
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Create floating particles
+        function createParticles() {
+            const particlesContainer = document.querySelector('.particles');
+            const particleCount = 15;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.width = Math.random() * 8 + 4 + 'px';
+                particle.style.height = particle.style.width;
+                particle.style.background = `rgba(255, 255, 255, ${Math.random() * 0.3 + 0.1})`;
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 15) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        // Initialize particles
+        createParticles();
+
+        // Content type selection
+        const contentTypes = document.querySelectorAll('.content-type');
+        const startButton = document.getElementById('startButton');
+        const inputSection = document.getElementById('inputSection');
+        const backButton = document.getElementById('backButton');
+        const scrollArrow = document.getElementById('scrollArrow');
+        const inputTitle = document.getElementById('inputTitle');
+        const inputSubtitle = document.getElementById('inputSubtitle');
+        const urlInput = document.getElementById('urlInput');
+        const fileInput = document.getElementById('fileInput');
+        const urlField = document.getElementById('urlField');
+        const processButton = document.getElementById('processButton');
+        const loading = document.getElementById('loading');
+
+        let selectedType = null;
+
+        contentTypes.forEach(type => {
+            type.addEventListener('click', () => {
+                contentTypes.forEach(t => t.classList.remove('active'));
+                type.classList.add('active');
+                selectedType = type.dataset.type;
+            });
+        });
+
+        // Start button functionality
+        startButton.addEventListener('click', () => {
+            if (!selectedType) {
+                alert('Please select a content type first!');
+                return;
+            }
+            
+            // Update input section based on selected type
+            updateInputSection();
+            
+            // Show input section with animation
+            inputSection.classList.add('active');
+        });
+
+        // Scroll arrow functionality
+        scrollArrow.addEventListener('click', () => {
+            if (selectedType) {
+                updateInputSection();
+                inputSection.classList.add('active');
+            } else {
+                alert('Please select a content type first!');
+            }
+        });
+
+        // Back button functionality
+        backButton.addEventListener('click', () => {
+            inputSection.classList.remove('active');
+            resetForm();
+        });
+
+        // Update input section based on selected type
+        function updateInputSection() {
+            switch(selectedType) {
+                case 'youtube':
+                    inputTitle.textContent = 'Enter YouTube URL';
+                    inputSubtitle.textContent = 'Paste your YouTube video URL below';
+                    urlField.placeholder = 'https://www.youtube.com/watch?v=...';
+                    urlInput.style.display = 'block';
+                    fileInput.style.display = 'none';
+                    break;
+                case 'web':
+                    inputTitle.textContent = 'Enter Website URL';
+                    inputSubtitle.textContent = 'Paste any website URL to summarize its content';
+                    urlField.placeholder = 'https://example.com/article...';
+                    urlInput.style.display = 'block';
+                    fileInput.style.display = 'none';
+                    break;
+                case 'pdf':
+                    inputTitle.textContent = 'Upload PDF Files';
+                    inputSubtitle.textContent = 'Select one or more PDF files to summarize';
+                    urlInput.style.display = 'none';
+                    fileInput.style.display = 'block';
+                    break;
+            }
+        }
+
+        // File upload functionality
+        const fileUpload = document.getElementById('fileUpload');
+        const pdfFiles = document.getElementById('pdfFiles');
+        const fileList = document.getElementById('fileList');
+
+        fileUpload.addEventListener('click', () => {
+            pdfFiles.click();
+        });
+
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+            fileUpload.style.background = 'rgba(255, 255, 255, 0.2)';
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            fileUpload.style.background = 'rgba(255, 255, 255, 0.1)';
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+            fileUpload.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            fileUpload.style.background = 'rgba(255, 255, 255, 0.1)';
+        });
+
+        pdfFiles.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            fileList.innerHTML = '';
+            Array.from(files).forEach(file => {
+                if (file.type === 'application/pdf') {
+                    const fileItem = document.createElement('div');
+                    fileItem.style.color = 'white';
+                    fileItem.style.margin = '0.5rem 0';
+                    fileItem.style.padding = '0.5rem';
+                    fileItem.style.background = 'rgba(255, 255, 255, 0.1)';
+                    fileItem.style.borderRadius = '10px';
+                    fileItem.textContent = `📄 ${file.name}`;
+                    fileList.appendChild(fileItem);
+                }
+            });
+        }
+
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:8000'; // Change this to your backend URL
+
+        // Process button functionality
+        processButton.addEventListener('click', async () => {
+            if (selectedType === 'pdf') {
+                const files = pdfFiles.files;
+                if (files.length === 0) {
+                    alert('Please select at least one PDF file!');
+                    return;
+                }
+                await processPDFFiles(files);
+            } else {
+                const url = urlField.value.trim();
+                if (!url) {
+                    alert('Please enter a valid URL!');
+                    return;
+                }
+                
+                // Basic URL validation
+                if (selectedType === 'youtube' && !url.includes('youtube.com') && !url.includes('youtu.be')) {
+                    alert('Please enter a valid YouTube URL!');
+                    return;
+                }
+                await processURL(url, selectedType);
+            }
+        });
+
+        // Function to process URLs (YouTube/Web)
+        async function processURL(url, contentType) {
+            loading.classList.add('active');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/summarize/url`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        content_type: contentType
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to process URL');
+                }
+
+                const result = await response.json();
+                displayResults(result);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        // Function to process PDF files
+        async function processPDFFiles(files) {
+            loading.classList.add('active');
+            
+            try {
+                const formData = new FormData();
+                for (let file of files) {
+                    formData.append('files', file);
+                }
+
+                const response = await fetch(`${API_BASE_URL}/summarize/pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to process PDF');
+                }
+
+                const result = await response.json();
+                displayResults(result);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error: ${error.message}`);
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        // Function to display results
+        function displayResults(result) {
+            // Hide input section
+            inputSection.classList.remove('active');
+            
+            // Create results modal
+            const modal = createResultsModal(result);
+            document.body.appendChild(modal);
+            
+            // Show modal with animation
+            setTimeout(() => modal.classList.add('active'), 10);
+        }
+
+        // Create results modal
+        function createResultsModal(result) {
+            const modal = document.createElement('div');
+            modal.className = 'results-modal';
+            modal.innerHTML = `
+                <div class="results-content">
+                    <button class="close-results">✕</button>
+                    <h2>📄 Summary Generated!</h2>
+                    <div class="summary-text">
+                        ${result.summary.replace(/\n/g, '<br>')}
+                    </div>
+                    <div class="results-actions">
+                        <audio controls class="audio-player">
+                            <source src="${API_BASE_URL}${result.audio_url}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                        <div class="download-buttons">
+                            <a href="${API_BASE_URL}${result.audio_url}" download="summary.mp3" class="download-btn">
+                                🎵 Download Audio
+                            </a>
+                            <button class="download-btn" onclick="downloadText('${result.summary}')">
+                                📝 Download Text
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal styles
+            const style = document.createElement('style');
+            style.textContent = `
+                .results-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2000;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                }
+                .results-modal.active { opacity: 1; }
+                .results-content {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 20px;
+                    padding: 2rem;
+                    max-width: 600px;
+                    width: 90%;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    position: relative;
+                    color: white;
+                }
+                .close-results {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    color: white;
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .summary-text {
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 1.5rem;
+                    border-radius: 15px;
+                    margin: 1rem 0;
+                    line-height: 1.6;
+                    backdrop-filter: blur(10px);
+                }
+                .results-actions {
+                    margin-top: 1.5rem;
+                }
+                .audio-player {
+                    width: 100%;
+                    margin-bottom: 1rem;
+                }
+                .download-buttons {
+                    display: flex;
+                    gap: 1rem;
+                    flex-wrap: wrap;
+                }
+                .download-btn {
+                    padding: 0.8rem 1.5rem;
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 25px;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                }
+                .download-btn:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                    transform: translateY(-2px);
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Close modal functionality
+            modal.querySelector('.close-results').addEventListener('click', () => {
+                modal.remove();
+            });
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+            
+            return modal;
+        }
+
+        // Download text function
+        function downloadText(summary) {
+            const blob = new Blob([summary], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'summary.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function resetForm() {
+            urlField.value = '';
+            pdfFiles.value = '';
+            fileList.innerHTML = '';
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && inputSection.classList.contains('active')) {
+                backButton.click();
+            }
+        });
+
+        // Auto-select content type on hover for better UX
+        contentTypes.forEach(type => {
+            type.addEventListener('mouseenter', () => {
+                if (!document.querySelector('.content-type.active')) {
+                    type.style.transform = 'translateY(-8px) scale(1.05)';
+                }
+            });
+            
+            type.addEventListener('mouseleave', () => {
+                if (!type.classList.contains('active')) {
+                    type.style.transform = 'translateY(-5px)';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
