@@ -1,6 +1,6 @@
 # Brevio-quick-short-straight-to-the-point
 
-Brevio is a Streamlit-based summarization app that allows users to generate intelligent summaries with audio! (both formats downloadable) from:
+Brevio is a summarization app that allows users to generate intelligent summaries with audio! (both formats downloadable) from:
 
 1. 🎥 YouTube videos
 2. 🌐 Web URLs
@@ -52,7 +52,7 @@ Powered by **LangChain**, **Groq LLM (Gemma2-9b-it)**, and **gTTS**, Zummary mak
 
 1. Clone the Repo
 
-> git clone https://github.com/Adityajain8595/Zummary-Content-Summarizer-App.git
+> git clone
 
 > cd Zummary-Content-Summarizer-App
 
@@ -86,13 +86,7 @@ Add these secrets to .streamlit/secrets.toml as well (used in app):
 
 > streamlit run summarize.py
 
----
 
-## 📸 Screenshots
-
-https://github.com/user-attachments/assets/bd4deeba-f959-4587-a515-2f9077b47f8a
-
----
 
 ## 👨‍💻 Author
 
@@ -100,6 +94,6 @@ Aditya Jain
 
 Would love to connect with you and hear your feedback! 
 
-Connect with me on 📧 LinkedIn: https://www.linkedin.com/in/adityajain8595/
+Connect with me on 📧 LinkedIn: 
 
 
